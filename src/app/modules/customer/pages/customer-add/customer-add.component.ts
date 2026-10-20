@@ -378,7 +378,7 @@ export class CustomerAddComponent implements OnInit {
   }
 
   validateTaxId(event: any): void {
-    const input = event.target.value;
+    let input = event.target.value;
     const type = this.customerForm.value.customerType || "";
     if (/\s/.test(input)) {
       Swal.fire({
@@ -388,15 +388,15 @@ export class CustomerAddComponent implements OnInit {
         confirmButtonText: "ตกลง",
       });
 
-      const cleanedInput = input.replace(/\s/g, "");
-      event.target.value = cleanedInput;
+      input = input.replace(/\s/g, "");
     }
-    var numericValue;
+    let numericValue;
     if (
       this.customerForm.value.customerType === "1F" ||
       this.customerForm.value.customerType === "OSEA"
     ) {
-      var numericValue = input;
+      // ต่างประเทศ: อนุญาตเฉพาะ A-Z, a-z, 0-9
+      numericValue = input.replace(/[^A-Za-z0-9]/g, "");
     } else {
       numericValue = this.validationService.validateTaxId(input, type);
     }
@@ -788,8 +788,11 @@ export class CustomerAddComponent implements OnInit {
             log.status === "Pending Approved By ACC" &&
             log.rejectReason !== ""
           ) {
-            if (log.roleId === 3 || log.roleId === 1) {
+            if (log.roleId === 3) {
               updatedStatus = "Reject By ACC";
+            }
+             if (log.roleId === 1) {
+              updatedStatus = "Reject By System Admin [IT]";
             }
           }
 
@@ -817,7 +820,9 @@ export class CustomerAddComponent implements OnInit {
           if (originalLog) {
             this.logs.unshift({
               status: this.statusforUpdate,
-              time: this.formatDateTime(this.successTime),
+              time: this.successTime
+                ? this.formatDateTime(this.successTime)
+                : "",
             });
           }
         }
@@ -1022,7 +1027,9 @@ export class CustomerAddComponent implements OnInit {
         }).then((result) => {
           if (result.isConfirmed) {
             this.reasonTemp = rejectReason;
-            this.setStatusAndSubmit("Reject By ACC");
+            this.isAdmin && this.customerForm.get("status")?.value === "Approved By ACC" 
+            ? this.setStatusAndSubmit("Pending Approved By ACC") 
+            : this.setStatusAndSubmit("Reject By ACC");
             Swal.fire({
               icon: "success",
               title: "Updated!",
@@ -1592,7 +1599,6 @@ export class CustomerAddComponent implements OnInit {
     const name = this.customerForm.get("name")?.value;
     const userId = this.customerForm.get("id")?.value;
     const type = this.customerForm.get("customerType")?.value;
-    console.log("Calling API with formData:", type, this.filteredDataType);
 
     if (company && site && name && userId == 0) {
       this.callApiWitCompanySiteAndName(company, site, name);
@@ -1699,7 +1705,7 @@ export class CustomerAddComponent implements OnInit {
           // แสดง Popup แรกแจ้งเตือนข้อมูลซ้ำ
 
 
-          const prefix = String(err.customerNum || "").substring(0, 2);
+          const prefix = String(err.customerNumber || "").substring(0, 2);
             const matchedType = this.filteredDataType.find(
               (t) => t.codeFrom === prefix,
             );
@@ -1753,6 +1759,9 @@ export class CustomerAddComponent implements OnInit {
 
   formatDateTime(dateTime: string): string {
     const date = new Date(dateTime);
+    if (!dateTime || isNaN(date.getTime())) {
+      return "-";
+    }
 
     const day = String(date.getDate()).padStart(2, "0");
     const month = String(date.getMonth() + 1).padStart(2, "0"); // เดือนเริ่มจาก 0 ต้องบวกเพิ่ม 1
@@ -1903,7 +1912,12 @@ export class CustomerAddComponent implements OnInit {
   getTimeSuccessByCustomerID(id: number) {
     this.customerService.findTimeSuccessByCustomerId(id).subscribe({
       next: (response: any) => {
-        this.successTime = response[0].UpdateTimestamp;
+        this.successTime = response?.[0]?.UpdateTimestamp ?? "";
+        // ถ้า logs โหลดเสร็จก่อน ให้อัปเดตเวลาของแถว Success
+        if (this.successTime && this.logs[0]?.status === this.statusforUpdate) {
+          this.logs[0].time = this.formatDateTime(this.successTime);
+          this._cdr.markForCheck();
+        }
       },
       error: () => {},
     });

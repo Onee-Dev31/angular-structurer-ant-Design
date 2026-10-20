@@ -1415,7 +1415,6 @@ export class SupplierAddComponent {
   }
 
   onPostalCodeChange(value: any): void {
-    console.log(value);
 
     const colonIdx = (value as string).lastIndexOf(":");
     const postIdFromValue = colonIdx !== -1 ? +value.slice(colonIdx + 1) : null;
@@ -2927,7 +2926,6 @@ export class SupplierAddComponent {
             this._cdr.detectChanges();
           },
           error: (err) => {
-            console.log("err:", err);
 
             let payload: any;
             try {

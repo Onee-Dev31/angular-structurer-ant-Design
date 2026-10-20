@@ -295,8 +295,9 @@
       <button
         *ngIf="isViewMode && 
      (
-       ((isAdmin || isApproved) && customerForm.get('status')?.value === 'Pending Approved By ACC')
-     ) && !['Approved By FN', 'Reject By FN', 'Reject By ACC', 'Cancel', 'Draft'].includes(customerForm.get('status')?.value)"
+       ((isAdmin || isApproved) && customerForm.get('status')?.value === 'Pending Approved By ACC') ||
+       (isAdmin && customerForm.get('status')?.value === 'Approved By ACC')
+     )"
         nz-button nzType="primary" nzDanger (click)="reject($event)">
         <span nz-icon nzType="close" nzTheme="outline"></span>Reject
       </button>
