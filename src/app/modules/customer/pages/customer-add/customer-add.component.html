@@ -99,7 +99,13 @@
         </nz-input-group>
       </div>
       <div *ngIf="isBranchPrefix()" nz-col [nzXs]="24" [nzMd]="12" [nzLg]="4" class="pr-3 mt-3">
-        <nz-form-label nzNoColon>สาขา</nz-form-label>
+        <nz-form-label nzNoColon>สาขา
+          <span nz-tooltip
+            nzTooltipTitle="สาขา : ไม่บังคับกรอก ไม่ต้องพิมพ์คำว่า “สาขา” ระบบจะเติมให้อัตโนมัติ เช่น กรอก บางนา จะได้ “สาขาบางนา”"
+            class="material-symbols-outlined ml-1" style="font-size: 18px;">
+            info
+          </span>
+        </nz-form-label>
         <nz-input-group nzPrefixIcon="shop" class="form-input">
           <input nz-input placeholder="สาขา (ถ้ามี)" formControlName="branch" (blur)="onNameBlur()" />
         </nz-input-group>
