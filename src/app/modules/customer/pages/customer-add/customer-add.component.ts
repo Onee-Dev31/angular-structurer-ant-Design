@@ -124,6 +124,7 @@ export class CustomerAddComponent implements OnInit {
     this.customerForm = this.fb.group({
       id: [0],
       name: ["", Validators.required],
+      branch: [""],
       taxId: ["", Validators.required],
       addressSup: ["", Validators.required],
       district: ["", Validators.required],
@@ -209,6 +210,10 @@ export class CustomerAddComponent implements OnInit {
       .get("prefix")
       ?.valueChanges.subscribe((prefix: string) => {
         this.selectedPrefix = prefix;
+        console.log("[branch] prefix changed:", prefix, "| isBranchPrefix:", this.isBranchPrefix());
+        if (!this.isBranchPrefix()) {
+          this.customerForm.get("branch")?.setValue("", { emitEvent: false });
+        }
         this.updateNameWithPrefixChange();
         this._cdr.detectChanges();
       });
@@ -247,6 +252,7 @@ export class CustomerAddComponent implements OnInit {
           };
 
           this.customerForm.patchValue({
+            branch: this.extractBranch(customerData.name),
             ...customerData,
             postalCode:
               customerData.postalCode +
@@ -290,7 +296,9 @@ export class CustomerAddComponent implements OnInit {
       this.checkAndCallApi();
       return;
     } else {
-      nameValue = nameValue
+      const branch = this.formatBranch();
+      console.log("[branch] onNameBlur input:", nameControl?.value, "| prefix:", this.selectedPrefix, "| branch:", branch);
+      nameValue = this.stripBranch(nameValue)
         .replace(/^บริษัท /, "")
         .replace(/\s?จำกัด\s?\(มหาชน\)/g, "")
         .replace(/\s?จำกัด/g, "")
@@ -299,19 +307,22 @@ export class CustomerAddComponent implements OnInit {
         .replace(/^ห้างหุ้นส่วนจำกัด/, "");
 
       if (this.selectedPrefix === "บริษัทจำกัด") {
-        nameControl?.setValue(`บริษัท ${nameValue.trim()} จำกัด`);
+        nameControl?.setValue(`บริษัท ${nameValue.trim()} จำกัด${branch}`);
       } else if (this.selectedPrefix === "บริษัทจำกัด (มหาชน)") {
-        nameControl?.setValue(`บริษัท ${nameValue.trim()} จำกัด (มหาชน)`);
+        nameControl?.setValue(
+          `บริษัท ${nameValue.trim()} จำกัด (มหาชน)${branch}`,
+        );
       } else if (this.selectedPrefix === "คุณ") {
         nameControl?.setValue(`คุณ ${nameValue.trim()}`);
       } else if (this.selectedPrefix === "ห้างหุ้นส่วนสามัญ") {
-        nameControl?.setValue(`ห้างหุ้นส่วนสามัญ${nameValue.trim()}`);
+        nameControl?.setValue(`ห้างหุ้นส่วนสามัญ${nameValue.trim()}${branch}`);
       } else if (this.selectedPrefix === "ห้างหุ้นส่วนจำกัด") {
         nameValue = nameValue.replace(/ห้างหุ้นส่วน/g, "");
-        nameControl?.setValue(`ห้างหุ้นส่วนจำกัด${nameValue.trim()}`);
+        nameControl?.setValue(`ห้างหุ้นส่วนจำกัด${nameValue.trim()}${branch}`);
       } else {
-        nameControl?.setValue(nameValue.trim());
+        nameControl?.setValue(`${nameValue.trim()}${branch}`);
       }
+      console.log("[branch] onNameBlur result:", nameControl?.value);
       this.checkAndCallApi();
     }
   }
@@ -345,8 +356,10 @@ export class CustomerAddComponent implements OnInit {
     if (!nameValue) {
       return;
     }
+    const branch = this.formatBranch();
+    console.log("[branch] updateNameWithPrefixChange input:", nameControl?.value, "| prefix:", this.selectedPrefix, "| branch:", branch);
     // ลบคำที่ auto เติมจาก prefix เดิมออกก่อนเสมอ
-    nameValue = nameValue
+    nameValue = this.stripBranch(nameValue)
       .replace(/^บริษัท /, "")
       .replace(/ จำกัด \(มหาชน\)$/, "")
       .replace(/ จำกัด$/, "")
@@ -362,19 +375,50 @@ export class CustomerAddComponent implements OnInit {
       return;
     } else {
       if (this.selectedPrefix === "บริษัทจำกัด") {
-        nameControl?.setValue(`บริษัท ${nameValue} จำกัด`);
+        nameControl?.setValue(`บริษัท ${nameValue} จำกัด${branch}`);
       } else if (this.selectedPrefix === "บริษัทจำกัด (มหาชน)") {
-        nameControl?.setValue(`บริษัท ${nameValue} จำกัด (มหาชน)`);
+        nameControl?.setValue(`บริษัท ${nameValue} จำกัด (มหาชน)${branch}`);
       } else if (this.selectedPrefix === "คุณ") {
         nameControl?.setValue(`คุณ ${nameValue}`);
       } else if (this.selectedPrefix === "ห้างหุ้นส่วนสามัญ") {
-        nameControl?.setValue(`ห้างหุ้นส่วนสามัญ${nameValue}`);
+        nameControl?.setValue(`ห้างหุ้นส่วนสามัญ${nameValue}${branch}`);
       } else if (this.selectedPrefix === "ห้างหุ้นส่วนจำกัด") {
-        nameControl?.setValue(`ห้างหุ้นส่วนจำกัด${nameValue}`);
+        nameControl?.setValue(`ห้างหุ้นส่วนจำกัด${nameValue}${branch}`);
       } else {
-        nameControl?.setValue(nameValue);
+        nameControl?.setValue(`${nameValue}${branch}`);
       }
+      console.log("[branch] updateNameWithPrefixChange result:", nameControl?.value);
     }
+  }
+
+  // ทุก prefix มีช่องสาขาให้กรอก ยกเว้น "คุณ" กับ "อื่นๆ" (สาขาเก็บแค่หน้าบ้าน แล้วต่อท้าย name)
+  isBranchPrefix(): boolean {
+    return (
+      !!this.selectedPrefix && !["คุณ", "อื่นๆ"].includes(this.selectedPrefix)
+    );
+  }
+
+  // ถ้า user ไม่ได้พิมพ์คำว่า "สาขา" มา จะเติมให้ ถ้าพิมพ์มาแล้วใช้ของ user
+  private formatBranch(): string {
+    const branch = (this.customerForm.get("branch")?.value || "").trim();
+    if (!branch || !this.isBranchPrefix()) {
+      return "";
+    }
+    if (/^(สาขา|สำนักงานใหญ่)/.test(branch)) {
+      return ` ${branch}`;
+    }
+    return /^\d/.test(branch) ? ` สาขา ${branch}` : ` สาขา${branch}`;
+  }
+
+  private stripBranch(name: string): string {
+    return name.replace(/\s*(สาขา|สำนักงานใหญ่).*$/, "");
+  }
+
+  // แยกสาขาออกจาก name ที่บันทึกไว้ ตอนโหลดข้อมูลมาแก้ไข
+  private extractBranch(name: string = ""): string {
+    const branch = name.match(/(สาขา|สำนักงานใหญ่).*$/)?.[0].trim() || "";
+    console.log("[branch] extractBranch from:", name, "->", branch);
+    return branch;
   }
 
   validateTaxId(event: any): void {
@@ -463,6 +507,7 @@ export class CustomerAddComponent implements OnInit {
       const postalCodeCombination =
         data.postalCode + "-" + data.subdistrict + ":" + data.postId;
       this.customerForm.patchValue({
+        branch: this.extractBranch(data.name),
         ...data,
         postalCode: postalCodeCombination,
       });
@@ -699,6 +744,7 @@ export class CustomerAddComponent implements OnInit {
 
     const formValue = { ...this.customerForm.value };
     formValue.postalCode = formValue.postalCode.split(":")[0].split("-")[0];
+    delete formValue.branch;
 
     if (this.listDataByTaxId) {
       formValue.id = 0;
